@@ -1,0 +1,188 @@
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../store/auth';
+import dateFormat from "dateformat";
+import toast from 'react-hot-toast'
+import PartnerOrdermobile from './PartnerOrdermobile';
+import jsPDF from 'jspdf';
+import { autoTable } from 'jspdf-autotable'
+
+function PartnerOrders() {
+
+    const { partnerData, isLoading } = useAuth()
+    const navigate = useNavigate();
+    const [orders, setOrders] = useState([])
+
+    const getAllOrders = async () => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/api/order/get-partner-orders/${partnerData._id}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            if (response.ok) {
+                const data = await response.json();
+                setOrders(data.data)
+            } else {
+                toast.error("Something went wrong")
+            }
+        } catch (error) {
+            console.log(error)
+        }
+    }
+    useEffect(() => {
+        if (partnerData?._id) {
+            getAllOrders()
+        }
+    }, [partnerData])
+
+    const generatePDF = () => {
+        const doc = new jsPDF();
+
+        doc.text('Order List', 14, 15);
+
+        const tableColumn = [
+            'Order ID',
+            'Customer Name',
+            'Earning',
+            'Payment Mode',
+            'Date',
+            'Status'
+        ];
+
+        const tableRows = [];
+
+        orders.forEach(order => {
+            const orderData = [
+                order._id,
+                order.customerName,
+                `Rs. ${order.deliveryCharges}`,
+                order.paymentMode.toUpperCase(),
+                order.createdAt.split("T")[0],
+                order.orderStatus
+            ];
+            tableRows.push(orderData);
+        });
+
+        autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+            styles: { fontSize: 8, cellWidth: 'wrap' },
+            headStyles: { fillColor: [22, 160, 133] }, // teal header
+        });
+
+        doc.save('order-list.pdf');
+    };
+
+    if (isLoading) {
+        return <div className='flex h-dvh w-full justify-center items-center'><span className="loading loading-spinner loading-lg"></span></div>
+    }
+
+    return (
+        <>
+            <section className='flex-grow min-h-dvh h-full lg:h-dvh lg:pb-0 pb-20'>
+                <div className='lg:my-10 my-5 mx-3 lg:mx-5'>
+                    <div className='flex justify-between lg:gap-5'>
+                        <h2 className='text-xl lg:text-3xl text-slate-900 font-extrabold lg:ml-4 tracking-tight'>All Orders</h2>
+                        <button onClick={generatePDF} className="px-3 py-2 text-sm text-white font-bold rounded-lg bg-[#198c36]">Download PDF</button>
+                    </div>
+                </div>
+
+                {orders.length === 0 ?
+
+                    <div className='w-full mt-20'>
+                        <div className='flex justify-center items-center'>
+                            <img className='h-40 w-40' src="/order.png" alt="" />
+                        </div>
+                        <h1 className='text-center text-3xl font-semibold tracking-tighter text-gray-700 mt-3'>No orders yet!</h1>
+                    </div>
+                    :
+                    <>
+                        {/* Mobile View of Orders */}
+                        < div className='mx-5 flex flex-row lg:hidden'>
+                            <PartnerOrdermobile orders={orders} partnerData={partnerData} />
+                        </div>
+
+                        {/* Desktop View of Orders */}
+                        <div className='px-5'>
+                            <div className="overflow-x-auto mt-7 hidden lg:block">
+                                <table className="min-w-full text-xs">
+                                    <colgroup>
+                                        <col />
+                                        <col />
+                                        <col />
+                                        <col />
+                                        <col />
+                                        <col />
+                                        <col />
+                                        <col />
+                                    </colgroup>
+                                    <thead className="bg-gray-100">
+                                        <tr className="text-left">
+                                            <th className="p-3 text-base tracking-tighter">Order ID</th>
+                                            <th className="p-3 text-base tracking-tighter">Customer Name</th>
+                                            <th className="p-3 text-base tracking-tighter">Delivery Address</th>
+                                            <th className="p-3 text-base tracking-tighter">Earning</th>
+                                            <th className="p-3 text-base tracking-tighter">Payment Mode</th>
+                                            <th className="p-3 text-base tracking-tighter">Date</th>
+                                            <th className="p-3 text-base tracking-tighter">Status</th>
+                                            <th className="p-3 text-base tracking-tighter">Navigate</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {orders.map((order, idx) => (
+                                            <tr key={idx} className="border-b border-opacity-20 border-gray-300 bg-white">
+                                                <td className="p-3 text-base tracking-tight">
+                                                    <Link to={"/partner/orders/" + order?._id} className='underline font-semibold'>{"#" + order?._id}</Link>
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight">
+                                                    <p>{order?.customerName}</p>
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight text-wrap max-w-[300px]">
+                                                    <p>{order?.deliveryAddress?.text}</p>
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight">
+                                                    <p className='font-bold tracking-tight'>{"Rs. " + order?.deliveryCharges}</p>
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight">
+                                                    <span className="bg-green-100 px-2 text-green-500 font-bold tracking-tighter py-1">
+                                                        <span>{order?.paymentMode?.toUpperCase()}</span>
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight">
+                                                    <p className='font-bold tracking-tight'>{dateFormat(order?.createdAt, "mediumDate")}</p>
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight">
+                                                    {order?.orderStatus === 'Waiting' ?
+                                                        <p className='text-orange-600 py-1 bg-orange-100 font-bold tracking-tighter text-center'>{order?.orderStatus}</p>
+                                                        :
+                                                        order?.orderStatus === 'Accepted' ?
+                                                            <p className='text-yellow-600 py-1 bg-yellow-100 font-bold tracking-tighter text-center'>{order?.orderStatus}</p>
+                                                            :
+                                                            order?.orderStatus === 'Picked' ?
+                                                                <p className='text-violet-800 py-1 bg-violet-100 font-bold tracking-tighter text-center'>{order?.orderStatus}</p>
+                                                                : order?.orderStatus === 'RTO' ?
+                                                                    <p className='text-red-600 py-1 bg-red-100 font-bold tracking-tighter text-center'>{order?.orderStatus}</p>
+                                                                    :
+                                                                    <p className='text-green-600 py-1 bg-green-100 font-bold tracking-tighter text-center'>{order?.orderStatus}</p>
+                                                    }
+                                                </td>
+                                                <td className="p-3 text-base tracking-tight">
+                                                    <Link to={`/partner/navigate/${partnerData._id}/${order._id}`} className='font-bold tracking-tight text-blue-800 underline'>Live Track</Link>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </>
+                }
+            </section >
+        </>
+    )
+}
+
+export default PartnerOrders
